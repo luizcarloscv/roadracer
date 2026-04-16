@@ -1,0 +1,5 @@
+{
+  "name": "Road Racer App",
+  "description": "A specialized app for motorcycle clubs featuring real-time emergency alerts, ride management, and member tracking.",
+  "requestFramePermissions": ["geolocation", "camera", "microphone"]
+}

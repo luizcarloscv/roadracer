@@ -1,0 +1,63 @@
+src/components/ProfileSettings.tsx:      await updateDoc(userRef, {
+src/components/ProfileSettings.tsx:        await updatePassword(user, newPassword);
+src/components/ProfileSettings.tsx:      await refreshProfile();
+src/components/StoreManagement.tsx:        await updateDoc(storeRef, {
+src/components/StoreManagement.tsx:        await addDoc(collection(db, 'stores'), {
+src/components/StoreManagement.tsx:      await deleteDoc(doc(db, 'stores', id));
+src/components/AuthProvider.tsx:      const { collection, query, where, getDocs, db, limit, createUserWithEmailAndPassword, signInWithEmailAndPassword, auth, doc, setDoc, deleteDoc } = await import('@/lib/firebase');
+src/components/AuthProvider.tsx:      const querySnap = await getDocs(q);
+src/components/AuthProvider.tsx:          await signInWithEmailAndPassword(auth, email, password);
+src/components/AuthProvider.tsx:              const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+src/components/AuthProvider.tsx:                await setDoc(doc(db, 'users', newUid), {
+src/components/AuthProvider.tsx:                await deleteDoc(doc(db, 'users', oldDocId));
+src/components/AuthProvider.tsx:          const docSnap = await getDoc(docRef);
+src/components/AuthProvider.tsx:      const docSnap = await getDoc(docRef);
+src/components/ImageEditor.tsx:    const img = await createImage(imageSrc);
+src/components/ImageEditor.tsx:      const croppedImage = await getCroppedImg(image, croppedAreaPixels);
+src/components/ImageEditor.tsx:      await setDoc(docRef, { 
+src/components/NotificationSystem.tsx:      await updateDoc(notifRef, {
+src/components/Login.tsx:      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+src/components/Login.tsx:      const userSnap = await getDoc(userRef);
+src/components/Login.tsx:        await auth.signOut();
+src/components/Login.tsx:      const success = await loginWithFirestore(email, password);
+src/components/EmergencySystem.tsx:      const permission = await Notification.requestPermission();
+src/components/EmergencySystem.tsx:          const registration = await navigator.serviceWorker.ready;
+src/components/EmergencySystem.tsx:            const subscription = await registration.pushManager.subscribe({
+src/components/EmergencySystem.tsx:            await setDoc(doc(db, 'push_subscriptions', subId), {
+src/components/EmergencySystem.tsx:          await addDoc(collection(db, 'emergencies'), emergencyData);
+src/components/EmergencySystem.tsx:            await sendPushNotification(
+src/components/EmergencySystem.tsx:      await updateDoc(emergencyRef, {
+src/components/EmergencySystem.tsx:      await updateDoc(emergencyRef, {
+src/components/EmergencySystem.tsx:      await updateDoc(emergencyRef, {
+src/components/EmergencySystem.tsx:      await deleteDoc(doc(db, 'emergencies', emergencyId));
+src/components/RideManagement.tsx:      await addDoc(collection(db, 'rides'), rideData);
+src/components/RideManagement.tsx:        await sendPushNotification(
+src/components/RideManagement.tsx:      await addDoc(collection(db, 'notifications'), {
+src/components/RideManagement.tsx:        await updateDoc(rideRef, {
+src/components/RideManagement.tsx:        await updateDoc(rideRef, {
+src/components/RideManagement.tsx:        await addDoc(collection(db, 'notifications'), {
+src/components/RideManagement.tsx:      await updateDoc(doc(db, 'rides', rideId), { status });
+src/components/RideManagement.tsx:      await deleteDoc(doc(db, 'rides', rideId));
+src/components/MemberManagement.tsx:        const docSnap = await getDoc(docRef);
+src/components/MemberManagement.tsx:            await setDoc(docRef, { list: merged });
+src/components/MemberManagement.tsx:          await setDoc(docRef, { list: initialRoles });
+src/components/MemberManagement.tsx:      await setDoc(doc(db, 'config', 'roles'), { list: updatedRoles });
+src/components/MemberManagement.tsx:      await setDoc(doc(db, 'config', 'roles'), { list: updatedRoles });
+src/components/MemberManagement.tsx:        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newMember.email, password);
+src/components/MemberManagement.tsx:        await signOut(secondaryAuth);
+src/components/MemberManagement.tsx:          await deleteApp(secondaryApp);
+src/components/MemberManagement.tsx:      await deleteApp(secondaryApp);
+src/components/MemberManagement.tsx:      await setDoc(doc(db, 'users', uid), {
+src/components/MemberManagement.tsx:      await updateDoc(userRef, {
+src/components/MemberManagement.tsx:      await deleteDoc(doc(db, 'users', uid));
+src/components/MemberManagement.tsx:        await deleteDoc(doc(db, 'members', uid));
+src/components/MemberManagement.tsx:      await updateDoc(userRef, {
+src/components/PermissionGuard.tsx:      const devices = await navigator.mediaDevices.enumerateDevices();
+src/components/PermissionGuard.tsx:      await new Promise((resolve, reject) => {
+src/components/PermissionGuard.tsx:        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+src/components/PermissionGuard.tsx:        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+src/components/PermissionGuard.tsx:        const result = await Notification.requestPermission();
+src/components/InstallPWA.tsx:      const { outcome } = await deferredPrompt.userChoice;
+src/services/notificationService.ts:    const subsSnapshot = await getDocs(collection(db, 'push_subscriptions'));
+src/services/notificationService.ts:      const response = await fetch('/api/notify-emergency', { // We can reuse this endpoint or rename it
+src/services/notificationService.ts:      return await response.json();

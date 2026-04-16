@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["president", "director", "member"] },
+        "phone": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "isBlocked": { "type": "boolean" },
+        "motorcycle": {
+          "type": "object",
+          "properties": {
+            "make": { "type": "string" },
+            "model": { "type": "string" },
+            "year": { "type": "string" },
+            "color": { "type": "string" },
+            "plate": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "createdAt"]
+    },
+    "Ride": {
+      "title": "Ride",
+      "description": "Motorcycle ride event",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "destination": { "type": "string" },
+        "date": { "type": "string" },
+        "meetingPoint": { "type": "string" },
+        "departureTime": { "type": "string" },
+        "arrivalTime": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "uid": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          }
+        },
+        "status": { "type": "string", "enum": ["planned", "ongoing", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "destination", "date", "createdBy", "status", "createdAt"]
+    },
+    "Emergency": {
+      "title": "Emergency",
+      "description": "SOS emergency alert",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          }
+        },
+        "status": { "type": "string", "enum": ["active", "resolved"] },
+        "responders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "uid": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          }
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "location", "status", "timestamp"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "Store": {
+      "title": "Store",
+      "description": "Partner store information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "instagram": { "type": "string" },
+        "logoUrl": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "address", "phone", "createdAt"]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "Web Push notification subscription",
+      "type": "object",
+      "properties": {
+        "subscription": { "type": "object" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subscription", "userId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and settings"
+    },
+    "/rides/{rideId}": {
+      "schema": "Ride",
+      "description": "Shared motorcycle rides"
+    },
+    "/emergencies/{emergencyId}": {
+      "schema": "Emergency",
+      "description": "Active and resolved SOS alerts"
+    },
+    "/config/app": {
+      "schema": "AppConfig",
+      "description": "Global app settings like logo"
+    },
+    "/stores/{storeId}": {
+      "schema": "Store",
+      "description": "Partner stores and businesses"
+    },
+    "/push_subscriptions/{subId}": {
+      "schema": "PushSubscription",
+      "description": "Web Push subscriptions for emergency alerts"
+    }
+  }
+}

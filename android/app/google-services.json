@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "683269265814",
+    "project_id": "ai-studio-applet-webapp-b1e44",
+    "storage_bucket": "ai-studio-applet-webapp-b1e44.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:683269265814:android:cb1210353402ebae5365b7",
+        "android_client_info": {
+          "package_name": "com.roadracer.mc"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "683269265814-184045imb5pa6ks4cnta3ie4n2k7ljcs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAAZv2yXiK0RfVuMeAE7MuO2T56qvtQ_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "683269265814-184045imb5pa6ks4cnta3ie4n2k7ljcs.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

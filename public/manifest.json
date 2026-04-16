@@ -1,0 +1,49 @@
+{
+  "lang": "pt-BR",
+  "name": "Road Racer Moto Clube",
+  "short_name": "Road Racer",
+  "description": "Aplicativo oficial do Road Racer Moto Clube. Gestão de membros, passeios e sistema de emergência SOS em tempo real.",
+  "id": "com.roadracer.mc.app",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#dc2626",
+  "categories": ["sports", "social", "utilities"],
+  "icons": [
+    {
+      "src": "/attachment/39ba9f98-0228-483e-9e90-efedb5f73770",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/attachment/39ba9f98-0228-483e-9e90-efedb5f73770",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/attachment/39ba9f98-0228-483e-9e90-efedb5f73770",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/attachment/39ba9f98-0228-483e-9e90-efedb5f73770",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/attachment/39ba9f98-0228-483e-9e90-efedb5f73770",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Road Racer App Home"
+    }
+  ]
+}

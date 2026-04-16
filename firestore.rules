@@ -1,0 +1,185 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches auth.uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - email: string (required, email format)
+    //   - role: string (required, 'president' | 'director' | 'member')
+    //   - phone: string (optional)
+    //   - photoURL: string (optional, uri)
+    //   - isBlocked: bool (optional)
+    //   - motorcycle: map (optional)
+    //   - createdAt: string (required, iso8601)
+    //
+    // Collection: rides
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required)
+    //   - destination: string (required)
+    //   - date: string (required)
+    //   - meetingPoint: string (optional)
+    //   - departureTime: string (optional)
+    //   - arrivalTime: string (optional)
+    //   - createdBy: string (required, uid)
+    //   - createdByName: string (optional)
+    //   - participants: list of maps (required)
+    //   - status: string (required, 'planned' | 'ongoing' | 'completed')
+    //   - createdAt: string (required, iso8601)
+    //
+    // Collection: emergencies
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required, uid)
+    //   - userEmail: string (optional)
+    //   - userName: string (required)
+    //   - location: map (required, lat/lng)
+    //   - status: string (required, 'active' | 'resolved')
+    //   - responders: list of maps (required)
+    //   - timestamp: string (required, iso8601)
+    //
+    // Collection: config
+    // Document ID: app
+    // Fields:
+    //   - logoUrl: string (optional, uri)
+    //
+    // Collection: push_subscriptions
+    // Document ID: auto-generated
+    // Fields:
+    //   - subscription: map (required)
+    //   - userId: string (required)
+    //   - userEmail: string (optional)
+    //   - updatedAt: string (required, iso8601)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email in ["luizcarloscv@gmail.com", "luizcarloscv@msn.com"] ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '').lower() in ['presidente', 'diretoria', 'president', 'director', 'admin']));
+    }
+
+    function isPresident() {
+      return isAuthenticated() && 
+        (request.auth.token.email in ["luizcarloscv@gmail.com", "luizcarloscv@msn.com"] ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '').lower() in ['presidente', 'president']));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (
+        url.matches("^https://.*") || 
+        url.matches("^http://.*") || 
+        url.matches("^data:image/.*")
+      );
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidPushSubscription(data) {
+      return data.subscription is map &&
+             data.userId is string &&
+             data.updatedAt is string;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if isAuthenticated() ||
+                   (request.query.limit != null && request.query.limit <= 1);
+      
+      allow create: if isAuthenticated() && (isOwner(userId) || isAdmin() || request.auth.token.email == request.resource.data.email);
+      
+      // Allow user to update their own profile (photo, name, phone)
+      // but NOT their role or blocked status unless they are admin
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (isOwner(userId) && 
+         (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) && 
+         (!('isBlocked' in request.resource.data) || request.resource.data.isBlocked == resource.data.isBlocked)) ||
+        (request.auth.token.email == resource.data.email)
+      );
+                    
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.token.email == resource.data.email);
+    }
+
+    // Rides
+    match /rides/{rideId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAuthenticated() && (isAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']));
+      allow delete: if isAdmin();
+    }
+
+    // Emergencies
+    match /emergencies/{emergencyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.auth.uid == resource.data.userId) ||
+        (request.auth.token.email == resource.data.get('userEmail', '')) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responders']))
+      );
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+    }
+
+    // App Config
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Partner Stores
+    match /stores/{storeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
+      allow delete: if isAdmin();
+    }
+    // Push Subscriptions
+    match /push_subscriptions/{subId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPushSubscription(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && isValidPushSubscription(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+  }
+}
