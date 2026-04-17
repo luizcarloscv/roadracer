@@ -1,5 +1,7 @@
+"use client";
+
 import React from 'react';
-import { Users, Shield, UserPlus, Search, Mail, Phone, Bike, Trash2, Ban, UserCheck, Plus, MapPin, Droplets, Lock, Loader2, Home } from 'lucide-react';
+import { Users, Shield, UserPlus, Search, Mail, Phone, Bike, Trash2, Ban, UserCheck, Plus, MapPin, Droplets, Lock, Loader2, Home, AlertCircle } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
 import { Badge } from '@/components/ui/badge';
 import { auth, db, collection, onSnapshot, query, setDoc, doc, orderBy, updateDoc, getDoc, firebaseConfig, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, signOut } from '@/lib/firebase';
 import { UserProfile } from '@/types';
@@ -44,10 +46,24 @@ export const MemberManagement: React.FC = () => {
 
   React.useEffect(() => {
     if (!isAdmin || isMocked) return;
+    
+    // O erro "Missing Permissions" acontece aqui se as regras do Firestore 
+    // não reconhecerem o usuário logado como admin.
     const q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMembers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        setMembers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
+      },
+      (error) => {
+        console.error("Firestore Snapshot Error:", error);
+        if (error.message.includes('permissions')) {
+          toast.error("Erro de Permissão: Verifique se seu cargo no banco de dados é 'Presidente'.", {
+            duration: 10000,
+            icon: <AlertCircle className="text-red-500" />
+          });
+        }
+      }
+    );
     return () => unsubscribe();
   }, [isAdmin, isMocked]);
 
@@ -114,14 +130,19 @@ export const MemberManagement: React.FC = () => {
   };
 
   const deleteUser = async (uid: string) => {
+    if (!backendUrl) {
+      toast.error("Erro: Backend não configurado. A exclusão real requer o servidor no Render.", {
+        duration: 6000
+      });
+      return;
+    }
+
     if (!window.confirm("Deseja excluir permanentemente? Isso removerá o acesso e liberará o e-mail.")) return;
     
     setIsDeleting(uid);
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      
-      // Se backendUrl estiver vazio, usamos o host atual (local)
-      const url = backendUrl ? `${backendUrl}/delete-member` : '/delete-member';
+      const url = `${backendUrl}/delete-member`;
       
       const resp = await fetch(url, {
         method: 'POST',
@@ -132,21 +153,28 @@ export const MemberManagement: React.FC = () => {
         body: JSON.stringify({ uid }),
       });
 
+      const result = await resp.json();
+
       if (!resp.ok) {
-        const errData = await resp.json();
-        throw new Error(errData.error || "Erro no servidor de exclusão.");
+        throw new Error(result.error || "Erro no servidor de exclusão.");
       }
+      
       toast.success("Membro removido com sucesso!");
     } catch (error: any) {
-      toast.error("Erro ao excluir: " + error.message);
+      console.error("Delete error:", error);
+      toast.error("Falha ao excluir: " + error.message);
     } finally {
       setIsDeleting(null);
     }
   };
 
   const toggleBlockUser = async (user: UserProfile) => {
-    await updateDoc(doc(db, 'users', user.uid), { isBlocked: !user.isBlocked });
-    toast.success(user.isBlocked ? "Membro Desbloqueado" : "Membro Bloqueado");
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { isBlocked: !user.isBlocked });
+      toast.success(user.isBlocked ? "Membro Desbloqueado" : "Membro Bloqueado");
+    } catch (error: any) {
+      toast.error("Erro ao alterar status: " + error.message);
+    }
   };
 
   const filteredMembers = members.filter(m => 
@@ -164,13 +192,18 @@ export const MemberManagement: React.FC = () => {
             Gestão de Membros
           </h2>
           <p className="text-neutral-500 text-sm">Controle de acesso e patentes do clube.</p>
+          {!backendUrl && (
+            <p className="text-[10px] text-yellow-500 font-bold mt-1 uppercase animate-pulse">
+              ⚠️ Backend Offline: Exclusão desativada
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-            <Input 
+            <input 
               placeholder="Buscar membro..." 
-              className="bg-neutral-900 border-neutral-800 pl-10 w-64"
+              className="bg-neutral-900 border border-neutral-800 rounded-lg h-10 pl-10 w-64 text-sm text-white outline-none focus:border-red-500"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
