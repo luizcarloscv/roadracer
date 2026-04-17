@@ -69,20 +69,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (userData.isBlocked) return false;
         if (!firestorePassword || firestorePassword !== password) return false;
         
-        // Try to login with real Firebase Auth first.
-        // This keeps full Firestore permissions and avoids mocked sessions.
         try {
           await signInWithEmailAndPassword(auth, normalizedEmail, password);
           return true;
         } catch (signInError: any) {
-          // If user does not exist in Auth yet, create and migrate profile.
-          // Firebase can return "invalid-credential" instead of "user-not-found".
           if (['auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-login-credentials'].includes(signInError.code)) {
             try {
               const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
               const newUid = userCredential.user.uid;
               
-              // Migrate the Firestore document to the new Auth UID
               if (newUid !== oldDocId) {
                 await setDoc(doc(db, 'users', newUid), {
                   ...userData,
@@ -105,8 +100,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
               console.error("Failed to create Auth user during upgrade:", createError);
             }
-          } else {
-            console.warn("Sign in error during upgrade:", signInError.code);
           }
         }
       }
@@ -124,8 +117,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(user);
       if (user) {
         try {
-          // Special case for the admin test account
-          if (ADMIN_EMAILS.includes((user.email || '').toLowerCase())) {
+          const docRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            setProfile(docSnap.data() as UserProfile);
+          } else if (ADMIN_EMAILS.includes((user.email || '').toLowerCase())) {
+            // Fallback apenas se o documento não existir no Firestore para o admin
             setProfile({
               uid: user.uid,
               displayName: user.displayName || 'Presidente',
@@ -139,14 +137,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               motorcycle: { make: 'BMW', model: 'GS 1250', year: '2023', color: 'Preta', plate: 'ROAD-2023' },
               createdAt: new Date().toISOString()
             });
-            setLoading(false);
-            return;
-          }
-
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
           }
         } catch (error) {
           console.error("Error fetching profile:", error);
@@ -178,16 +168,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const role = profile?.role?.toLowerCase() || '';
     return ['presidente', 'diretoria', 'president', 'director', 'admin'].includes(role);
   }, [profile?.role, user?.email]);
-
-  // Auto-upgrade mocked users to real Auth accounts
-  React.useEffect(() => {
-    if (isMocked && profile?.email && profile?.password) {
-      console.log("Attempting to auto-upgrade mocked user to real Auth...");
-      loginWithFirestore(profile.email, profile.password).catch(err => {
-        console.error("Auto-upgrade failed:", err);
-      });
-    }
-  }, [isMocked, profile?.email, profile?.password]);
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, isAdmin, isMocked, loginMock, loginWithFirestore, refreshProfile }}>

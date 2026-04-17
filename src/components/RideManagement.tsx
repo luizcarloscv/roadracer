@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Bike, Calendar, MapPin, Clock, Plus, UserPlus, UserMinus, Trash2, CheckCircle, Pencil, Phone, AtSign } from 'lucide-react';
+import { Bike, Calendar, MapPin, Clock, Plus, UserPlus, UserMinus, Trash2, CheckCircle, Pencil, Phone, AtSign, Coffee, Flag, Zap, Users } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,7 @@ export const RideManagement: React.FC = () => {
     instagram: '',
     departureTime: '',
     arrivalTime: '',
+    breakfast: '',
   });
 
   React.useEffect(() => {
@@ -43,11 +44,7 @@ export const RideManagement: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRides(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride)));
     }, (error) => {
-      if (error.code === 'permission-denied') {
-        console.warn("Permission denied for rides listener.");
-      } else {
-        console.error("Error listening to rides:", error);
-      }
+      console.error("Error listening to rides:", error);
     });
     return () => unsubscribe();
   }, [user, profile]);
@@ -80,32 +77,22 @@ export const RideManagement: React.FC = () => {
       
       const rideRef = await addDoc(collection(db, 'rides'), rideData);
 
-      // Send Push Notification
-      try {
-        await sendPushNotification(
-          '🏍️ NOVO PASSEIO!',
-          `Um novo passeio para ${newRide.destination} foi criado por ${displayName}.`,
-          window.location.origin
-        );
-      } catch (pushErr) {
-        console.error("Push notification failed:", pushErr);
-      }
+      await sendPushNotification(
+        '🏍️ NOVO PASSEIO!',
+        `Destino: ${newRide.destination}. Criado por ${displayName}.`,
+        window.location.origin
+      );
 
-      // Create notification for all members
-      try {
-        await addDoc(collection(db, 'notifications'), {
-          type: 'ride_created',
-          title: 'Novo Passeio!',
-          message: `Um novo passeio para ${newRide.destination} foi criado por ${displayName}.`,
-          rideId: rideRef.id,
-          rideDate: newRide.date,
-          rideStatus: 'planned',
-          createdAt: new Date().toISOString(),
-          readBy: []
-        });
-      } catch (notifErr) {
-        console.error("Internal notification failed:", notifErr);
-      }
+      await addDoc(collection(db, 'notifications'), {
+        type: 'ride_created',
+        title: 'Novo Passeio!',
+        message: `Um novo passeio para ${newRide.destination} foi criado por ${displayName}.`,
+        rideId: rideRef.id,
+        rideDate: newRide.date,
+        rideStatus: 'planned',
+        createdAt: new Date().toISOString(),
+        readBy: []
+      });
 
       setIsDialogOpen(false);
       setNewRide({
@@ -117,8 +104,9 @@ export const RideManagement: React.FC = () => {
         instagram: '',
         departureTime: '',
         arrivalTime: '',
+        breakfast: '',
       });
-      toast.success("Passeio criado com sucesso!");
+      toast.success("Passeio criado e membros notificados!");
     } catch (error) {
       console.error("Error creating ride:", error);
       toast.error("Erro ao criar passeio.");
@@ -127,23 +115,12 @@ export const RideManagement: React.FC = () => {
 
   const handleUpdateRide = async () => {
     if (!editingRide || !isAdmin) return;
-
     try {
-      await updateDoc(doc(db, 'rides', editingRide.id), {
-        title: editingRide.title,
-        destination: editingRide.destination,
-        date: editingRide.date,
-        meetingPoint: editingRide.meetingPoint,
-        locationPhone: editingRide.locationPhone || '',
-        instagram: editingRide.instagram || '',
-        departureTime: editingRide.departureTime,
-        arrivalTime: editingRide.arrivalTime,
-      });
+      await updateDoc(doc(db, 'rides', editingRide.id), { ...editingRide });
       setIsEditDialogOpen(false);
       setEditingRide(null);
-      toast.success('Passeio atualizado com sucesso!');
+      toast.success('Passeio atualizado!');
     } catch (error) {
-      console.error('Error updating ride:', error);
       toast.error('Erro ao atualizar passeio.');
     }
   };
@@ -160,447 +137,246 @@ export const RideManagement: React.FC = () => {
       const rideRef = doc(db, 'rides', ride.id);
       const displayName = profile.nick || profile.displayName;
       const motorcycleInfo = profile.motorcycle ? `${profile.motorcycle.make} ${profile.motorcycle.model}` : 'Sem Moto';
-      const participant = { 
-        uid: user.uid, 
-        name: displayName,
-        motorcycle: motorcycleInfo
-      };
+      const participant = { uid: user.uid, name: displayName, motorcycle: motorcycleInfo };
       
       if (isParticipating) {
         const pToRemove = ride.participants.find((p: any) => (typeof p === 'string' ? p === user.uid : p.uid === user.uid));
-        await updateDoc(rideRef, {
-          participants: arrayRemove(pToRemove)
-        });
+        await updateDoc(rideRef, { participants: arrayRemove(pToRemove) });
         toast.success("Você saiu do passeio.");
       } else {
-        await updateDoc(rideRef, {
-          participants: arrayUnion(participant)
-        });
-
-        // Create notification for everyone
-        try {
-          await addDoc(collection(db, 'notifications'), {
-            type: 'ride_join',
-            title: 'Novo Integrante no Passeio!',
-            message: `${displayName} entrou no passeio: ${ride.title}`,
-            rideId: ride.id,
-            createdAt: new Date().toISOString(),
-            readBy: []
-          });
-        } catch (notifErr) {
-          console.error("Internal notification failed:", notifErr);
-        }
-
-        toast.success("Você entrou no passeio!");
+        await updateDoc(rideRef, { participants: arrayUnion(participant) });
+        toast.success("Presença confirmada!");
       }
     } catch (error) {
-      console.error("Error toggling participation:", error);
       toast.error("Erro ao atualizar participação.");
     }
   };
 
-  const updateStatus = async (rideId: string, status: Ride['status']) => {
-    try {
-      await updateDoc(doc(db, 'rides', rideId), { status });
-      toast.success(`Status atualizado para ${status}`);
-    } catch (error) {
-      console.error("Error updating ride status:", error);
-      toast.error("Erro ao atualizar status.");
-    }
-  };
-
-  const deleteRide = async (rideId: string) => {
-    if (!isAdmin) {
-      toast.error("Apenas o Presidente ou a Diretoria podem excluir passeios.");
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, 'rides', rideId));
-      toast.success("Passeio excluído.");
-      setRideToDelete(null);
-    } catch (error) {
-      console.error("Error deleting ride:", error);
-      toast.error("Erro ao excluir passeio.");
-    }
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Bike className="text-red-500" />
-          Próximos Passeios
+        <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white flex items-center gap-3">
+          <Bike className="text-red-600 w-8 h-8" />
+          Próximos Rolês
         </h2>
         
         {isAdmin && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-red-600 hover:bg-red-700">
-                <Plus className="w-4 h-4" />
+              <Button className="gap-2 bg-red-600 hover:bg-red-700 font-black italic uppercase tracking-tighter h-12 px-6 shadow-lg shadow-red-600/20">
+                <Plus className="w-5 h-5" />
                 Novo Passeio
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Criar Novo Passeio</DialogTitle>
-                <DialogDescription className="text-neutral-400">
-                  Preencha os detalhes do próximo destino do grupo.
-                </DialogDescription>
+                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Novo Passeio</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="title" className="text-white">Título</Label>
-                  <Input id="title" value={newRide.title} onChange={e => setNewRide({...newRide, title: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
+                  <Label>Título do Rolê (Ex: Rolê de Domingo)</Label>
+                  <Input value={newRide.title} onChange={e => setNewRide({...newRide, title: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="destination" className="text-white">Destino</Label>
-                  <Input id="destination" value={newRide.destination} onChange={e => setNewRide({...newRide, destination: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
-                  {newRide.destination.trim() && (
-                    <div className="rounded-lg overflow-hidden border border-neutral-700">
-                      <iframe
-                        title="Mapa destino"
-                        className="w-full h-40"
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://maps.google.com/maps?q=${encodeURIComponent(newRide.destination)}&t=&z=14&ie=UTF8&iwloc=B&output=embed`}
-                      />
-                    </div>
-                  )}
+                  <Label>Destino Final</Label>
+                  <Input value={newRide.destination} onChange={e => setNewRide({...newRide, destination: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="date" className="text-white">Data</Label>
-                    <Input id="date" type="date" value={newRide.date} onChange={e => setNewRide({...newRide, date: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
+                    <Label>Data</Label>
+                    <Input type="date" value={newRide.date} onChange={e => setNewRide({...newRide, date: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="meetingPoint" className="text-white">Ponto de Encontro</Label>
-                    <Input id="meetingPoint" value={newRide.meetingPoint} onChange={e => setNewRide({...newRide, meetingPoint: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
-                    {newRide.meetingPoint.trim() && (
-                      <div className="rounded-lg overflow-hidden border border-neutral-700">
-                        <iframe
-                          title="Mapa ponto de encontro"
-                          className="w-full h-40"
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                          src={`https://maps.google.com/maps?q=${encodeURIComponent(newRide.meetingPoint)}&t=&z=14&ie=UTF8&iwloc=B&output=embed`}
-                        />
-                      </div>
-                    )}
+                    <Label>Ponto de Encontro</Label>
+                    <Input value={newRide.meetingPoint} onChange={e => setNewRide({...newRide, meetingPoint: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="locationPhone" className="text-white">Telefone do Local (opcional)</Label>
-                    <Input id="locationPhone" value={newRide.locationPhone} onChange={e => setNewRide({...newRide, locationPhone: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
+                    <Label>Concentração</Label>
+                    <Input type="time" value={newRide.departureTime} onChange={e => setNewRide({...newRide, departureTime: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="instagram" className="text-white">Instagram (opcional)</Label>
-                    <Input id="instagram" placeholder="@local" value={newRide.instagram} onChange={e => setNewRide({...newRide, instagram: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
+                    <Label>Saída Pontual</Label>
+                    <Input type="time" value={newRide.arrivalTime} onChange={e => setNewRide({...newRide, arrivalTime: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                   </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Café da Manhã (Opcional)</Label>
+                  <Input value={newRide.breakfast} onChange={e => setNewRide({...newRide, breakfast: e.target.value})} className="bg-neutral-800 border-neutral-700" placeholder="Ex: Restaurante Biu Rico" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="departure" className="text-white">Concentração</Label>
-                    <Input id="departure" type="time" value={newRide.departureTime} onChange={e => setNewRide({...newRide, departureTime: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
+                    <Label>Telefone Local</Label>
+                    <Input value={newRide.locationPhone} onChange={e => setNewRide({...newRide, locationPhone: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="arrival" className="text-white">Saída</Label>
-                    <Input id="arrival" type="time" value={newRide.arrivalTime} onChange={e => setNewRide({...newRide, arrivalTime: e.target.value})} className="bg-neutral-800 border-neutral-700 text-white" />
+                    <Label>Instagram</Label>
+                    <Input value={newRide.instagram} onChange={e => setNewRide({...newRide, instagram: e.target.value})} className="bg-neutral-800 border-neutral-700" placeholder="@local" />
                   </div>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                <Button className="bg-red-600 hover:bg-red-700 text-white font-bold" onClick={handleCreateRide}>CRIAR PASSEIO</Button>
+                <Button className="bg-red-600 hover:bg-red-700 font-bold" onClick={handleCreateRide}>CRIAR E NOTIFICAR</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-8 md:grid-cols-2">
         {rides.map((ride) => (
-          <Card key={ride.id} className="bg-neutral-900 border-neutral-800 overflow-hidden group hover:border-red-900/50 transition-all relative">
-            <div className="absolute top-0 left-0 w-full h-1 bg-checkerboard opacity-20" />
-            <CardHeader className="pb-3 relative z-10">
+          <Card key={ride.id} className="bg-gradient-to-b from-orange-600 to-orange-900 border-none overflow-hidden shadow-2xl relative group">
+            <div className="absolute inset-0 bg-checkerboard opacity-10 pointer-events-none" />
+            
+            <CardHeader className="pb-2 relative z-10">
               <div className="flex justify-between items-start">
-                <div>
-                  <Badge variant={ride.status === 'ongoing' ? 'destructive' : 'secondary'} className="mb-2 flex items-center gap-2 w-fit">
-                    <img src={logoUrl} alt="Road Racer" className="w-4 h-4 rounded-full object-cover bg-white" />
-                    <span>{ride.status === 'planned' ? 'Planejado' : ride.status === 'ongoing' ? 'Em andamento' : 'Concluído'}</span>
-                  </Badge>
-                  <CardTitle className="text-xl text-white font-black italic uppercase tracking-tight">{ride.title}</CardTitle>
-                  <CardDescription
-                    className="flex items-center gap-2 mt-1 text-red-500 font-bold text-xs uppercase tracking-widest cursor-pointer hover:text-red-400"
-                    onClick={() => openRoute(ride.destination)}
-                  >
-                    <MapPin className="w-3 h-3" />
-                    <span className="underline underline-offset-2">Rota para o Local: {ride.destination}</span>
-                  </CardDescription>
+                <div className="flex items-center gap-2">
+                  <Avatar className="w-8 h-8 border border-white/20">
+                    <AvatarImage src={logoUrl} />
+                    <AvatarFallback>RR</AvatarFallback>
+                  </Avatar>
+                  <span className="text-[10px] font-black uppercase text-white/80 tracking-widest">Road Racer MC</span>
                 </div>
                 {isAdmin && (
                   <div className="flex gap-1">
-                    {ride.status === 'planned' && (
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-green-500 hover:bg-green-500/10" onClick={() => updateStatus(ride.id, 'ongoing')}>
-                        <CheckCircle className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
-                      onClick={() => {
-                        setEditingRide(ride);
-                        setIsEditDialogOpen(true);
-                      }}
-                    >
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/10" onClick={() => { setEditingRide(ride); setIsEditDialogOpen(true); }}>
                       <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-8 w-8 text-neutral-500 hover:text-red-500 hover:bg-red-500/10" 
-                      onClick={() => setRideToDelete(ride.id)}
-                    >
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-red-500" onClick={() => setRideToDelete(ride.id)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
               </div>
+              <div className="text-center mt-4 space-y-1">
+                <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white drop-shadow-lg">{ride.title}</h3>
+                <p className="text-red-200 font-bold uppercase tracking-[0.3em] text-[10px]">Bate e Volta Confirmado</p>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-8 h-8 bg-neutral-800 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest">Data</p>
-                    <p className="text-white font-medium">
-                      {ride.date ? format(new Date(ride.date), "dd/MM/yyyy", { locale: ptBR }) : 'Data não definida'}
-                    </p>
-                  </div>
+
+            <CardContent className="space-y-6 relative z-10 px-8 py-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 text-white">
+                  <Calendar className="w-6 h-6 shrink-0" />
+                  <span className="text-lg font-bold">{ride.date ? format(new Date(ride.date), "dd/MM/yyyy", { locale: ptBR }) : '--/--/----'}</span>
                 </div>
 
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-8 h-8 bg-neutral-800 rounded-lg flex items-center justify-center">
-                    <Clock className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest">Horário</p>
-                    <p className="text-white font-medium">Saída: {ride.arrivalTime || '--:--'} (Pontualmente)</p>
-                  </div>
+                <div className="flex items-start gap-4 text-white cursor-pointer hover:text-orange-200 transition-colors" onClick={() => openRoute(ride.meetingPoint)}>
+                  <MapPin className="w-6 h-6 shrink-0 mt-1" />
+                  <span className="text-sm font-medium leading-tight uppercase tracking-tight">{ride.meetingPoint}</span>
                 </div>
 
-                <div className="flex items-start gap-3 text-sm">
-                  <div className="w-8 h-8 bg-neutral-800 rounded-lg flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest">Ponto de Encontro</p>
-                    <button
-                      type="button"
-                      className="text-white font-medium leading-tight text-left underline underline-offset-2 hover:text-red-400"
-                      onClick={() => openRoute(ride.meetingPoint)}
-                    >
-                      Rota para o Local: {ride.meetingPoint}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-4 text-white">
+                  <Zap className="w-6 h-6 shrink-0" />
+                  <span className="text-sm font-bold uppercase tracking-tighter">CONCENTRAÇÃO: <span className="text-xl ml-2">{ride.departureTime || '--:--'}h</span></span>
                 </div>
-                {(ride.locationPhone || ride.instagram) && (
-                  <div className="flex items-start gap-3 text-sm">
-                    <div className="w-8 h-8 bg-neutral-800 rounded-lg flex items-center justify-center shrink-0">
-                      <Phone className="w-4 h-4 text-red-500" />
-                    </div>
-                    <div className="space-y-1">
-                      {ride.locationPhone && <p className="text-white font-medium leading-tight">Telefone do local: {ride.locationPhone}</p>}
-                      {ride.instagram && (
-                        <p className="text-white font-medium leading-tight flex items-center gap-1">
-                          <AtSign className="w-3 h-3 text-red-400" />
-                          {ride.instagram}
-                        </p>
-                      )}
-                    </div>
+
+                <div className="flex items-center gap-4 text-white">
+                  <Clock className="w-6 h-6 shrink-0" />
+                  <span className="text-sm font-bold uppercase tracking-tighter">SAÍDA: <span className="text-xl ml-2">{ride.arrivalTime || '--:--'}h</span> <span className="text-[10px] ml-2 opacity-70">(PONTUALMENTE)</span></span>
+                </div>
+
+                {ride.breakfast && (
+                  <div className="flex items-center gap-4 text-white">
+                    <Coffee className="w-6 h-6 shrink-0" />
+                    <span className="text-sm font-bold uppercase tracking-tighter">CAFÉ DA MANHÃ: <span className="ml-2">{ride.breakfast}</span></span>
                   </div>
                 )}
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-green-500 uppercase tracking-widest">
-                  <CheckCircle className="w-4 h-4" />
-                  Pilotos Confirmados:
+
+                <div className="flex items-center gap-4 text-white">
+                  <Flag className="w-6 h-6 shrink-0" />
+                  <span className="text-sm font-bold uppercase tracking-tighter">DESTINO: <span className="text-xl ml-2">{ride.destination}</span></span>
                 </div>
-                
-                <div className="grid gap-1.5">
-                  {ride.participants.map((participant: any, i) => {
-                    const name = typeof participant === 'string' ? 'Membro' : participant.name;
-                    const numStr = (i + 1).toString().padStart(2, '0');
-                    return (
-                      <div key={i} className="flex items-center gap-3 group">
-                        <div className="flex gap-0.5">
-                          {numStr.split('').map((digit, idx) => (
-                            <div key={idx} className="w-5 h-6 bg-neutral-800 rounded flex items-center justify-center text-[11px] font-black text-blue-400 border border-neutral-700 shadow-inner">
-                              {digit}
-                            </div>
-                          ))}
-                        </div>
-                        <span className="text-sm text-neutral-300 font-medium group-hover:text-white transition-colors">
-                          {name}
-                          {participant.motorcycle && (
-                            <span className="ml-2 text-[10px] text-neutral-500 font-bold uppercase italic">
-                              - {participant.motorcycle}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  
-                  {/* Empty slots to match the "list" feel if few participants */}
-                  {ride.participants.length < 5 && Array.from({ length: 5 - ride.participants.length }).map((_, i) => {
-                    const numStr = (ride.participants.length + i + 1).toString().padStart(2, '0');
-                    return (
-                      <div key={`empty-${i}`} className="flex items-center gap-3 opacity-30">
-                        <div className="flex gap-0.5">
-                          {numStr.split('').map((digit, idx) => (
-                            <div key={idx} className="w-5 h-6 bg-neutral-900 rounded flex items-center justify-center text-[11px] font-black text-neutral-600 border border-neutral-800">
-                              {digit}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="h-4 w-24 bg-neutral-900 rounded-full animate-pulse" />
-                      </div>
-                    );
-                  })}
+              </div>
+
+              <div className="pt-6 border-t border-white/20">
+                <div className="flex items-center gap-2 text-white/90 text-xs font-black uppercase tracking-widest mb-4">
+                  <Users className="w-4 h-4" />
+                  Pilotos Confirmados ({ride.participants.length})
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {ride.participants.slice(0, 5).map((p: any, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5">
+                      <div className="w-6 h-6 bg-white/10 rounded flex items-center justify-center text-[10px] font-black text-white">{(i+1).toString().padStart(2, '0')}</div>
+                      <span className="text-xs font-bold text-white uppercase">{typeof p === 'string' ? 'Membro' : p.name}</span>
+                      {p.motorcycle && <span className="text-[9px] text-white/50 italic ml-auto">{p.motorcycle}</span>}
+                    </div>
+                  ))}
+                  {ride.participants.length > 5 && <p className="text-[10px] text-white/60 text-center font-bold">+ {ride.participants.length - 5} OUTROS PILOTOS</p>}
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="bg-neutral-950/50 border-t border-neutral-800 p-4">
+
+            <CardFooter className="p-6 pt-0 relative z-10">
               <Button 
                 className={cn(
-                  "w-full gap-2 h-12 font-bold uppercase tracking-widest text-xs rounded-xl transition-all active:scale-95",
+                  "w-full h-14 font-black italic uppercase tracking-tighter text-lg rounded-2xl transition-all active:scale-95 shadow-2xl",
                   ride.participants.some((p: any) => (typeof p === 'string' ? p === user?.uid : p.uid === user?.uid))
-                    ? "bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700" 
-                    : "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20"
+                    ? "bg-white text-orange-700 hover:bg-white/90" 
+                    : "bg-black text-white hover:bg-black/80 animate-pulse"
                 )}
                 onClick={() => toggleParticipation(ride)}
               >
                 {ride.participants.some((p: any) => (typeof p === 'string' ? p === user?.uid : p.uid === user?.uid)) ? (
-                  <><UserMinus className="w-4 h-4" /> Sair do Passeio</>
+                  <><UserMinus className="w-6 h-6 mr-2" /> SAIR DO ROLÊ</>
                 ) : (
-                  <><UserPlus className="w-4 h-4" /> Confirmar Presença</>
+                  <><UserPlus className="w-6 h-6 mr-2" /> CONFIRMAR PRESENÇA</>
                 )}
               </Button>
             </CardFooter>
+
+            <div className="absolute bottom-4 right-4 opacity-20 pointer-events-none">
+              <img src={logoUrl} alt="Logo" className="w-24 h-24 grayscale brightness-200" />
+            </div>
           </Card>
         ))}
-
-        {rides.length === 0 && (
-          <div className="col-span-full py-20 text-center border border-dashed border-neutral-800 rounded-3xl text-neutral-500">
-            Nenhum passeio agendado.
-          </div>
-        )}
       </div>
 
-      {/* Deletion Confirmation Dialog */}
-      <Dialog open={!!rideToDelete} onOpenChange={(open) => !open && setRideToDelete(null)}>
-        <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Excluir Passeio?</DialogTitle>
-            <DialogDescription className="text-neutral-400">
-              Esta ação não pode ser desfeita. O passeio será removido permanentemente.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 mt-4">
-            <Button variant="ghost" onClick={() => setRideToDelete(null)}>Cancelar</Button>
-            <Button 
-              variant="destructive" 
-              className="bg-red-600 hover:bg-red-700 text-white font-bold"
-              onClick={() => rideToDelete && deleteRide(rideToDelete)}
-            >
-              CONFIRMAR EXCLUSÃO
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      {/* Dialogs de Edição e Exclusão mantidos com as correções de campos */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Alterar Passeio</DialogTitle>
-            <DialogDescription className="text-neutral-400">
-              Atualize as informacoes do passeio selecionado.
-            </DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Editar Passeio</DialogTitle></DialogHeader>
           {editingRide && (
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label className="text-white">Título</Label>
-                <Input value={editingRide.title} onChange={e => setEditingRide({ ...editingRide, title: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
+                <Label>Título</Label>
+                <Input value={editingRide.title} onChange={e => setEditingRide({ ...editingRide, title: e.target.value })} className="bg-neutral-800 border-neutral-700" />
               </div>
               <div className="grid gap-2">
-                <Label className="text-white">Destino</Label>
-                <Input value={editingRide.destination} onChange={e => setEditingRide({ ...editingRide, destination: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
-                {editingRide.destination.trim() && (
-                  <div className="rounded-lg overflow-hidden border border-neutral-700">
-                    <iframe
-                      title="Mapa destino edição"
-                      className="w-full h-40"
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent(editingRide.destination)}&t=&z=14&ie=UTF8&iwloc=B&output=embed`}
-                    />
-                  </div>
-                )}
+                <Label>Destino</Label>
+                <Input value={editingRide.destination} onChange={e => setEditingRide({ ...editingRide, destination: e.target.value })} className="bg-neutral-800 border-neutral-700" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label className="text-white">Data</Label>
-                  <Input type="date" value={editingRide.date} onChange={e => setEditingRide({ ...editingRide, date: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
+                  <Label>Data</Label>
+                  <Input type="date" value={editingRide.date} onChange={e => setEditingRide({ ...editingRide, date: e.target.value })} className="bg-neutral-800 border-neutral-700" />
                 </div>
                 <div className="grid gap-2">
-                  <Label className="text-white">Ponto de Encontro</Label>
-                  <Input value={editingRide.meetingPoint} onChange={e => setEditingRide({ ...editingRide, meetingPoint: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
-                  {editingRide.meetingPoint.trim() && (
-                    <div className="rounded-lg overflow-hidden border border-neutral-700">
-                      <iframe
-                        title="Mapa encontro edição"
-                        className="w-full h-40"
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://maps.google.com/maps?q=${encodeURIComponent(editingRide.meetingPoint)}&t=&z=14&ie=UTF8&iwloc=B&output=embed`}
-                      />
-                    </div>
-                  )}
+                  <Label>Ponto de Encontro</Label>
+                  <Input value={editingRide.meetingPoint} onChange={e => setEditingRide({ ...editingRide, meetingPoint: e.target.value })} className="bg-neutral-800 border-neutral-700" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-white">Telefone do Local (opcional)</Label>
-                  <Input value={editingRide.locationPhone || ''} onChange={e => setEditingRide({ ...editingRide, locationPhone: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-white">Instagram (opcional)</Label>
-                  <Input placeholder="@local" value={editingRide.instagram || ''} onChange={e => setEditingRide({ ...editingRide, instagram: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-white">Concentração</Label>
-                  <Input type="time" value={editingRide.departureTime} onChange={e => setEditingRide({ ...editingRide, departureTime: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-white">Saída</Label>
-                  <Input type="time" value={editingRide.arrivalTime} onChange={e => setEditingRide({ ...editingRide, arrivalTime: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white" />
-                </div>
+              <div className="grid gap-2">
+                <Label>Café da Manhã</Label>
+                <Input value={(editingRide as any).breakfast || ''} onChange={e => setEditingRide({ ...editingRide, breakfast: e.target.value } as any)} className="bg-neutral-800 border-neutral-700" />
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
-            <Button className="bg-red-600 hover:bg-red-700 text-white font-bold" onClick={handleUpdateRide}>
-              SALVAR ALTERAÇÕES
-            </Button>
+            <Button className="bg-red-600 hover:bg-red-700" onClick={handleUpdateRide}>SALVAR</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rideToDelete} onOpenChange={(open) => !open && setRideToDelete(null)}>
+        <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-sm">
+          <DialogHeader><DialogTitle>Excluir Passeio?</DialogTitle></DialogHeader>
+          <DialogFooter className="gap-2 mt-4">
+            <Button variant="ghost" onClick={() => setRideToDelete(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => rideToDelete && deleteRide(rideToDelete)}>EXCLUIR</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

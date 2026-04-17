@@ -85,12 +85,14 @@ app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
     }
 
     const db = admin.firestore();
+    // Deleta do Firestore primeiro
     await Promise.allSettled([
       db.doc(`users/${uid}`).delete(),
       db.doc(`members/${uid}`).delete(),
       db.doc(`push_tokens/${uid}`).delete(),
     ]);
 
+    // Limpa inscrições de push
     try {
       const subs = await db.collection('push_subscriptions').where('userId', '==', uid).get();
       if (!subs.empty) {
@@ -98,10 +100,11 @@ app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
         subs.docs.forEach((entry) => batch.delete(entry.ref));
         await batch.commit();
       }
-    } catch {
-      // non-blocking cleanup
+    } catch (e) {
+      console.error("Cleanup push error:", e);
     }
 
+    // Deleta do Auth (isso libera o e-mail)
     try {
       await admin.auth().deleteUser(uid);
     } catch (error) {
@@ -111,7 +114,7 @@ app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('delete-member error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
@@ -134,28 +137,34 @@ app.post('/notify-emergency', requireAuth, async (req, res) => {
       return;
     }
 
-    const isEmergency = level === 'emergency';
+    const isEmergency = level === 'emergency' || title.includes('SOS');
+    
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
       notification: { title, body },
       data: {
         url,
         type: isEmergency ? 'emergency' : 'ride',
+        click_action: 'FLUTTER_NOTIFICATION_CLICK', // Compatibilidade
       },
       android: {
-        priority: isEmergency ? 'high' : 'normal',
+        priority: 'high', // CRÍTICO: Garante entrega com app fechado
+        ttl: 3600 * 1000,
         notification: {
           channelId: isEmergency ? 'emergency_alerts' : 'default',
           sound: 'default',
+          priority: 'high',
+          visibility: 'public',
         },
       },
       apns: {
         headers: {
-          'apns-priority': isEmergency ? '10' : '5',
+          'apns-priority': '10',
         },
         payload: {
           aps: {
             sound: 'default',
+            contentAvailable: true,
           },
         },
       },
@@ -177,4 +186,3 @@ initFirebaseAdmin();
 app.listen(port, () => {
   console.log(`RoadRacer backend listening on ${port}`);
 });
-
