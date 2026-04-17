@@ -120,25 +120,23 @@ export const MemberManagement: React.FC = () => {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       
-      if (!backendUrl) {
-        await updateDoc(doc(db, 'users', uid), { isBlocked: true });
-        toast.warning("Backend não configurado no .env. O usuário foi apenas bloqueado.");
-      } else {
-        const resp = await fetch(`${backendUrl}/delete-member`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json', 
-            'Authorization': `Bearer ${idToken}` 
-          },
-          body: JSON.stringify({ uid }),
-        });
+      // Se backendUrl estiver vazio, usamos o host atual (local)
+      const url = backendUrl ? `${backendUrl}/delete-member` : '/delete-member';
+      
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${idToken}` 
+        },
+        body: JSON.stringify({ uid }),
+      });
 
-        if (!resp.ok) {
-          const errData = await resp.json();
-          throw new Error(errData.error || "Erro no servidor de exclusão.");
-        }
-        toast.success("Membro removido com sucesso!");
+      if (!resp.ok) {
+        const errData = await resp.json();
+        throw new Error(errData.error || "Erro no servidor de exclusão.");
       }
+      toast.success("Membro removido com sucesso!");
     } catch (error: any) {
       toast.error("Erro ao excluir: " + error.message);
     } finally {

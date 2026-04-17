@@ -125,6 +125,17 @@ export const RideManagement: React.FC = () => {
     }
   };
 
+  const deleteRide = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'rides', id));
+      setRideToDelete(null);
+      toast.success("Passeio excluído com sucesso.");
+    } catch (error) {
+      console.error("Error deleting ride:", error);
+      toast.error("Erro ao excluir passeio.");
+    }
+  };
+
   const openRoute = (target: string) => {
     if (!target?.trim()) return;
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(target)}&travelmode=driving`, '_blank');
@@ -334,7 +345,6 @@ export const RideManagement: React.FC = () => {
         ))}
       </div>
 
-      {/* Dialogs de Edição e Exclusão mantidos com as correções de campos */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Editar Passeio</DialogTitle></DialogHeader>
