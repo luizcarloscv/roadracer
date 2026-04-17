@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { auth, db, collection, onSnapshot, query, setDoc, doc, orderBy, updateDoc, getDoc, firebaseConfig, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, signOut } from '@/lib/firebase';
 import { UserProfile } from '@/types';
 import { toast } from 'sonner';
@@ -65,7 +66,6 @@ export const MemberManagement: React.FC = () => {
     try {
       const normalizedEmail = newMember.email.trim().toLowerCase();
       
-      // Criar usuário no Firebase Auth usando uma instância secundária para não deslogar o admin
       const secondaryApp = initializeApp(firebaseConfig, `Secondary_${Date.now()}`);
       const secondaryAuth = getAuth(secondaryApp);
       
@@ -75,12 +75,11 @@ export const MemberManagement: React.FC = () => {
       await signOut(secondaryAuth);
       await deleteApp(secondaryApp);
 
-      // Salvar dados completos no Firestore
       await setDoc(doc(db, 'users', uid), {
         ...newMember,
         email: normalizedEmail,
         uid: uid,
-        password: password, // Salvo para referência do admin se necessário
+        password: password,
         isBlocked: false,
         createdAt: new Date().toISOString(),
       });
@@ -122,7 +121,6 @@ export const MemberManagement: React.FC = () => {
       const idToken = await auth.currentUser?.getIdToken();
       
       if (!backendUrl) {
-        // Se não houver backend, apenas bloqueia e avisa
         await updateDoc(doc(db, 'users', uid), { isBlocked: true });
         toast.warning("Backend não configurado no .env. O usuário foi apenas bloqueado.");
       } else {
