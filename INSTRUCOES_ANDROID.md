@@ -20,27 +20,29 @@ npm run build
 ```
 
 ## 3. Configurando o Android (Capacitor)
-No mesmo terminal, rode:
+Se você recebeu o erro "android platform has not been added yet", siga exatamente esta ordem:
 
 ```bash
-# Adiciona a plataforma Android
+# 1. Adiciona a plataforma Android ao projeto local
 npx cap add android
 
-# Copia o código para a pasta do Android
+# 2. Copia o código e plugins para a pasta do Android
 npx cap sync
 ```
 
+*Nota: Se o comando `add` disser que a pasta já existe, você pode tentar `npx cap sync` novamente ou apagar a pasta `android` e rodar o `add` de novo.*
+
 ## 4. Gerando o APK no Android Studio
 Agora, abra o Android Studio e:
-1. Clique em **Open** e selecione a pasta `android` que foi criada dentro do seu projeto.
-2. Espere o Android Studio terminar de carregar (pode levar alguns minutos na primeira vez).
+1. Clique em **Open** e selecione a pasta `android` que está dentro do seu projeto.
+2. Espere o Android Studio terminar de carregar (o "Gradle Sync" no rodapé deve finalizar).
 3. No menu superior, vá em: **Build > Build Bundle(s) / APK(s) > Build APK(s)**.
 4. Quando terminar, clique no link **locate** que aparecerá no canto inferior direito.
-5. O arquivo `app-debug.apk` é o seu aplicativo!
+5. O arquivo `roadracer-v1.0.xxxx-debug.apk` é o seu aplicativo!
 
 ## 5. Dicas Importantes
 - **Atualizações**: Sempre que você mudar algo no código no VS Code, você precisa rodar `npm run build` e depois `npx cap sync` para que a mudança vá para o Android Studio.
-- **Ícones**: Para mudar o ícone que aparece no celular, você pode usar o comando `npx cordova-res android --skip-config --copy` (requer instalação do cordova-res).
+- **Erro de JDK**: Se o Android Studio reclamar da versão do Java, vá em *Settings > Build, Execution, Deployment > Build Tools > Gradle* e mude o "Gradle JDK" para a versão 17 ou 21.
 
 ---
 *Road Racer Moto Clube — Sistema de Gestão e Emergência*
