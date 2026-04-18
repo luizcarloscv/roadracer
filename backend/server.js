@@ -2,6 +2,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 
 dotenv.config();
 
@@ -30,7 +31,10 @@ function initFirebaseAdmin() {
       clientEmail,
       privateKey,
     }),
+    projectId // Garante que o ID do projeto esteja explícito
   });
+  
+  console.log("Firebase Admin inicializado com sucesso.");
 }
 
 function getBearerToken(req) {
@@ -50,6 +54,7 @@ async function requireAuth(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
+    console.error("Auth Error:", error.message);
     res.status(401).json({ error: 'Invalid token' });
   }
 }
@@ -73,7 +78,11 @@ function requireAdmin(req, res, next) {
 }
 
 app.get('/health', (_, res) => {
-  res.json({ ok: true });
+  res.json({ 
+    ok: true, 
+    databaseId: process.env.FIREBASE_DATABASE_ID || '(default)',
+    projectId: process.env.FIREBASE_PROJECT_ID 
+  });
 });
 
 app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
@@ -84,39 +93,39 @@ app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
       return;
     }
 
-    // IMPORTANTE: Conecta ao banco de dados específico definido no ENV ou usa o default
     const dbId = process.env.FIREBASE_DATABASE_ID || '(default)';
-    const db = admin.firestore(dbId);
+    // Usando getFirestore(dbId) que é a forma correta para bancos nomeados
+    const db = getFirestore(dbId);
     
-    console.log(`Iniciando exclusão do UID: ${uid} no banco: ${dbId}`);
+    console.log(`Tentando excluir UID: ${uid} no banco: ${dbId}`);
 
-    // Deleta do Firestore primeiro
-    await Promise.allSettled([
+    // Verifica se o usuário existe antes de tentar apagar (para debug)
+    const userDoc = await db.doc(`users/${uid}`).get();
+    if (!userDoc.exists) {
+      console.warn(`Aviso: Documento users/${uid} não encontrado no banco ${dbId}`);
+    }
+
+    // Executa as exclusões
+    const results = await Promise.allSettled([
       db.doc(`users/${uid}`).delete(),
       db.doc(`members/${uid}`).delete(),
       db.doc(`push_tokens/${uid}`).delete(),
+      admin.auth().deleteUser(uid).catch(err => {
+        if (err.code === 'auth/user-not-found') return null;
+        throw err;
+      })
     ]);
 
-    // Limpa inscrições de push
-    try {
-      const subs = await db.collection('push_subscriptions').where('userId', '==', uid).get();
-      if (!subs.empty) {
-        const batch = db.batch();
-        subs.docs.forEach((entry) => batch.delete(entry.ref));
-        await batch.commit();
-      }
-    } catch (e) {
-      console.error("Cleanup push error:", e);
+    const errors = results.filter(r => r.status === 'rejected');
+    if (errors.length > 0) {
+      console.error("Algumas operações falharam:", errors);
     }
 
-    // Deleta do Auth (isso libera o e-mail)
-    try {
-      await admin.auth().deleteUser(uid);
-    } catch (error) {
-      if (error?.code !== 'auth/user-not-found') throw error;
-    }
-
-    res.json({ success: true });
+    res.json({ 
+      success: true, 
+      found: userDoc.exists,
+      message: userDoc.exists ? "Membro excluído" : "Membro não encontrado no Firestore, mas comando processado"
+    });
   } catch (error) {
     console.error('delete-member error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -125,14 +134,9 @@ app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
 
 app.post('/notify-emergency', requireAuth, async (req, res) => {
   try {
-    const title = String(req.body?.title || 'ROAD RACER');
-    const body = String(req.body?.body || 'Nova notificação');
-    const url = String(req.body?.url || '/');
-    const level = String(req.body?.level || 'info');
-    const senderUid = String(req.body?.senderUid || '');
-
+    const { title, body, url, level, senderUid } = req.body;
     const dbId = process.env.FIREBASE_DATABASE_ID || '(default)';
-    const db = admin.firestore(dbId);
+    const db = getFirestore(dbId);
 
     const tokensSnap = await db.collection('push_tokens').get();
     const tokens = tokensSnap.docs
@@ -145,43 +149,22 @@ app.post('/notify-emergency', requireAuth, async (req, res) => {
       return;
     }
 
-    const isEmergency = level === 'emergency' || title.includes('SOS');
+    const isEmergency = level === 'emergency' || String(title).includes('SOS');
     
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
-      notification: { title, body },
-      data: {
-        url,
-        type: isEmergency ? 'emergency' : 'ride',
-      },
+      notification: { title: String(title), body: String(body) },
+      data: { url: String(url), type: isEmergency ? 'emergency' : 'ride' },
       android: {
         priority: 'high',
-        ttl: 3600 * 1000,
         notification: {
           channelId: isEmergency ? 'emergency_alerts' : 'default',
           sound: 'default',
-          priority: 'high',
-          visibility: 'public',
-        },
-      },
-      apns: {
-        headers: {
-          'apns-priority': '10',
-        },
-        payload: {
-          aps: {
-            sound: 'default',
-            contentAvailable: true,
-          },
         },
       },
     });
 
-    res.json({
-      success: response.successCount > 0,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-    });
+    res.json({ success: response.successCount > 0, count: response.successCount });
   } catch (error) {
     console.error('notify-emergency error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -190,6 +173,6 @@ app.post('/notify-emergency', requireAuth, async (req, res) => {
 
 const port = Number(process.env.PORT || 8080);
 initFirebaseAdmin();
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`RoadRacer backend listening on ${port}`);
 });
