@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Users, Shield, UserPlus, Search, Mail, Phone, Bike, Trash2, Ban, UserCheck, Plus, MapPin, Droplets, Lock, Loader2, Home, AlertCircle } from 'lucide-react';
+import { Users, Shield, UserPlus, Search, Bike, Trash2, Ban, UserCheck, Plus, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { auth, db, collection, onSnapshot, query, setDoc, doc, orderBy, updateDoc, getDoc, firebaseConfig, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, signOut } from '@/lib/firebase';
+import { auth, db, collection, onSnapshot, query, setDoc, doc, orderBy, updateDoc, firebaseConfig, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, signOut } from '@/lib/firebase';
 import { UserProfile } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -42,7 +42,6 @@ export const MemberManagement: React.FC = () => {
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
 
-  // Definindo a URL do seu Render como fallback padrão
   const backendUrl = (import.meta.env.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) || 'https://roadracer-backend.onrender.com';
 
   React.useEffect(() => {
@@ -55,12 +54,7 @@ export const MemberManagement: React.FC = () => {
       },
       (error) => {
         console.error("Firestore Snapshot Error:", error);
-        if (error.message.includes('permissions')) {
-          toast.error("Erro de Permissão: Verifique se seu cargo no banco de dados é 'Presidente'.", {
-            duration: 10000,
-            icon: <AlertCircle className="text-red-500" />
-          });
-        }
+        toast.error("Erro ao carregar membros. Verifique sua conexão.");
       }
     );
     return () => unsubscribe();
@@ -80,13 +74,10 @@ export const MemberManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       const normalizedEmail = newMember.email.trim().toLowerCase();
-      
       const secondaryApp = initializeApp(firebaseConfig, `Secondary_${Date.now()}`);
       const secondaryAuth = getAuth(secondaryApp);
-      
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, password);
       const uid = userCredential.user.uid;
-      
       await signOut(secondaryAuth);
       await deleteApp(secondaryApp);
 
@@ -103,7 +94,6 @@ export const MemberManagement: React.FC = () => {
       resetForm();
       toast.success("Membro cadastrado com sucesso!");
     } catch (error: any) {
-      console.error(error);
       toast.error(error.message || "Erro ao cadastrar membro.");
     } finally {
       setIsSubmitting(false);
@@ -129,14 +119,11 @@ export const MemberManagement: React.FC = () => {
   };
 
   const deleteUser = async (uid: string) => {
-    if (!backendUrl) {
-      toast.error("Erro: Backend não configurado.");
-      return;
-    }
-
     if (!window.confirm("Deseja excluir permanentemente? Isso removerá o acesso e liberará o e-mail.")) return;
     
     setIsDeleting(uid);
+    const toastId = toast.loading("Processando exclusão no servidor...");
+    
     try {
       const idToken = await auth.currentUser?.getIdToken();
       const url = `${backendUrl}/delete-member`;
@@ -153,13 +140,13 @@ export const MemberManagement: React.FC = () => {
       const result = await resp.json();
 
       if (!resp.ok) {
-        throw new Error(result.error || "Erro no servidor de exclusão.");
+        throw new Error(result.error || "Erro no servidor.");
       }
       
-      toast.success("Membro removido com sucesso!");
+      toast.success(result.message || "Membro removido com sucesso!", { id: toastId });
     } catch (error: any) {
       console.error("Delete error:", error);
-      toast.error("Falha ao excluir: " + error.message);
+      toast.error("Falha ao excluir: " + error.message, { id: toastId });
     } finally {
       setIsDeleting(null);
     }
@@ -221,11 +208,6 @@ export const MemberManagement: React.FC = () => {
                     <Badge variant="outline" className="text-[10px] border-red-900/50 text-red-500 uppercase">{member.nick}</Badge>
                   </div>
                   <p className="text-xs text-neutral-500">{member.email} • <span className="text-neutral-300 font-medium">{member.role}</span></p>
-                  {member.motorcycle?.model && (
-                    <p className="text-[10px] text-neutral-600 flex items-center gap-1 mt-1">
-                      <Bike className="w-3 h-3" /> {member.motorcycle.make} {member.motorcycle.model} ({member.motorcycle.plate})
-                    </p>
-                  )}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -234,7 +216,6 @@ export const MemberManagement: React.FC = () => {
                   size="icon" 
                   className={cn("h-9 w-9", member.isBlocked ? "text-green-500" : "text-yellow-500")}
                   onClick={() => toggleBlockUser(member)}
-                  title={member.isBlocked ? "Desbloquear" : "Bloquear"}
                 >
                   {member.isBlocked ? <UserCheck className="w-5 h-5" /> : <Ban className="w-5 h-5" />}
                 </Button>
@@ -251,20 +232,12 @@ export const MemberManagement: React.FC = () => {
             </CardContent>
           </Card>
         ))}
-
-        {filteredMembers.length === 0 && (
-          <div className="text-center py-12 border-2 border-dashed border-neutral-800 rounded-2xl">
-            <Users className="w-12 h-12 text-neutral-800 mx-auto mb-2" />
-            <p className="text-neutral-500">Nenhum membro encontrado.</p>
-          </div>
-        )}
       </div>
 
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Cadastrar Novo Membro</DialogTitle>
-            <DialogDescription className="text-neutral-400">Preencha todos os dados para criar o perfil oficial no clube.</DialogDescription>
           </DialogHeader>
           
           <Tabs defaultValue="personal" className="w-full">
@@ -288,69 +261,52 @@ export const MemberManagement: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Telefone (WhatsApp)</Label>
-                  <Input value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} className="bg-neutral-800 border-neutral-700" placeholder="(00) 00000-0000" />
+                  <Label>Telefone</Label>
+                  <Input value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                 </div>
                 <div className="space-y-2">
                   <Label>Tipo Sanguíneo</Label>
-                  <Select value={newMember.bloodType} onValueChange={v => setNewMember({...newMember, bloodType: v})}>
-                    <SelectTrigger className="bg-neutral-800 border-neutral-700">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-neutral-900 border-neutral-800 text-white">
-                      {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(t => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input value={newMember.bloodType} onChange={e => setNewMember({...newMember, bloodType: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="address" className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Endereço (Rua, Número)</Label>
+                <Label>Endereço</Label>
                 <Input value={newMember.address} onChange={e => setNewMember({...newMember, address: e.target.value})} className="bg-neutral-800 border-neutral-700" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Complemento</Label>
-                  <Input value={newMember.complement} onChange={e => setNewMember({...newMember, complement: e.target.value})} className="bg-neutral-800 border-neutral-700" />
-                </div>
-                <div className="space-y-2">
                   <Label>Bairro</Label>
                   <Input value={newMember.neighborhood} onChange={e => setNewMember({...newMember, neighborhood: e.target.value})} className="bg-neutral-800 border-neutral-700" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Cidade / UF</Label>
-                <Input value={newMember.city} onChange={e => setNewMember({...newMember, city: e.target.value})} className="bg-neutral-800 border-neutral-700" />
+                <div className="space-y-2">
+                  <Label>Cidade</Label>
+                  <Input value={newMember.city} onChange={e => setNewMember({...newMember, city: e.target.value})} className="bg-neutral-800 border-neutral-700" />
+                </div>
               </div>
             </TabsContent>
 
             <TabsContent value="bike" className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Fabricante</Label>
-                  <Input value={newMember.motorcycle.make} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, make: e.target.value}})} className="bg-neutral-800 border-neutral-700" placeholder="Ex: Honda" />
+                  <Label>Marca</Label>
+                  <Input value={newMember.motorcycle.make} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, make: e.target.value}})} className="bg-neutral-800 border-neutral-700" />
                 </div>
                 <div className="space-y-2">
                   <Label>Modelo</Label>
-                  <Input value={newMember.motorcycle.model} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, model: e.target.value}})} className="bg-neutral-800 border-neutral-700" placeholder="Ex: CB 500X" />
+                  <Input value={newMember.motorcycle.model} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, model: e.target.value}})} className="bg-neutral-800 border-neutral-700" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ano</Label>
                   <Input value={newMember.motorcycle.year} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, year: e.target.value}})} className="bg-neutral-800 border-neutral-700" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Cor</Label>
-                  <Input value={newMember.motorcycle.color} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, color: e.target.value}})} className="bg-neutral-800 border-neutral-700" />
-                </div>
-                <div className="space-y-2">
                   <Label>Placa</Label>
-                  <Input value={newMember.motorcycle.plate} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, plate: e.target.value}})} className="bg-neutral-800 border-neutral-700" placeholder="ABC-1234" />
+                  <Input value={newMember.motorcycle.plate} onChange={e => setNewMember({...newMember, motorcycle: {...newMember.motorcycle, plate: e.target.value}})} className="bg-neutral-800 border-neutral-700" />
                 </div>
               </div>
             </TabsContent>
@@ -371,17 +327,15 @@ export const MemberManagement: React.FC = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Cargo / Patente</Label>
+                <Label>Cargo</Label>
                 <Select value={newMember.role} onValueChange={v => setNewMember({...newMember, role: v})}>
                   <SelectTrigger className="bg-neutral-800 border-neutral-700">
-                    <SelectValue placeholder="Selecione o Cargo" />
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent className="bg-neutral-900 border-neutral-800 text-white">
                     <SelectItem value="Presidente">Presidente</SelectItem>
                     <SelectItem value="Diretoria">Diretoria</SelectItem>
-                    <SelectItem value="Batedor">Batedor</SelectItem>
                     <SelectItem value="Membro">Membro</SelectItem>
-                    <SelectItem value="Novato">Novato</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -390,9 +344,9 @@ export const MemberManagement: React.FC = () => {
 
           <DialogFooter className="mt-6">
             <Button variant="ghost" onClick={() => setIsAddDialogOpen(false)} disabled={isSubmitting}>Cancelar</Button>
-            <Button className="bg-red-600 hover:bg-red-700 font-bold px-8" onClick={handleAddMember} disabled={isSubmitting}>
+            <Button className="bg-red-600 hover:bg-red-700 font-bold" onClick={handleAddMember} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
-              CADASTRAR MEMBRO
+              CADASTRAR
             </Button>
           </DialogFooter>
         </DialogContent>
