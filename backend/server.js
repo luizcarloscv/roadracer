@@ -84,7 +84,12 @@ app.post('/delete-member', requireAuth, requireAdmin, async (req, res) => {
       return;
     }
 
-    const db = admin.firestore();
+    // IMPORTANTE: Conecta ao banco de dados específico definido no ENV ou usa o default
+    const dbId = process.env.FIREBASE_DATABASE_ID || '(default)';
+    const db = admin.firestore(dbId);
+    
+    console.log(`Iniciando exclusão do UID: ${uid} no banco: ${dbId}`);
+
     // Deleta do Firestore primeiro
     await Promise.allSettled([
       db.doc(`users/${uid}`).delete(),
@@ -126,7 +131,10 @@ app.post('/notify-emergency', requireAuth, async (req, res) => {
     const level = String(req.body?.level || 'info');
     const senderUid = String(req.body?.senderUid || '');
 
-    const tokensSnap = await admin.firestore().collection('push_tokens').get();
+    const dbId = process.env.FIREBASE_DATABASE_ID || '(default)';
+    const db = admin.firestore(dbId);
+
+    const tokensSnap = await db.collection('push_tokens').get();
     const tokens = tokensSnap.docs
       .map((entry) => entry.data())
       .filter((row) => typeof row.token === 'string' && row.token.length > 20 && row.userId !== senderUid)
@@ -145,10 +153,9 @@ app.post('/notify-emergency', requireAuth, async (req, res) => {
       data: {
         url,
         type: isEmergency ? 'emergency' : 'ride',
-        click_action: 'FLUTTER_NOTIFICATION_CLICK', // Compatibilidade
       },
       android: {
-        priority: 'high', // CRÍTICO: Garante entrega com app fechado
+        priority: 'high',
         ttl: 3600 * 1000,
         notification: {
           channelId: isEmergency ? 'emergency_alerts' : 'default',
