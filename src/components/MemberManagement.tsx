@@ -42,7 +42,8 @@ export const MemberManagement: React.FC = () => {
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
 
-  const backendUrl = (import.meta.env.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) || '';
+  // Definindo a URL do seu Render como fallback padrão
+  const backendUrl = (import.meta.env.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) || 'https://roadracer-backend.onrender.com';
 
   React.useEffect(() => {
     if (!isAdmin || isMocked) return;
@@ -129,9 +130,7 @@ export const MemberManagement: React.FC = () => {
 
   const deleteUser = async (uid: string) => {
     if (!backendUrl) {
-      toast.error("Erro: Backend não configurado. A exclusão real requer o servidor no Render.", {
-        duration: 6000
-      });
+      toast.error("Erro: Backend não configurado.");
       return;
     }
 
@@ -190,11 +189,6 @@ export const MemberManagement: React.FC = () => {
             Gestão de Membros
           </h2>
           <p className="text-neutral-500 text-sm">Controle de acesso e patentes do clube.</p>
-          {!backendUrl && (
-            <p className="text-[10px] text-yellow-500 font-bold mt-1 uppercase animate-pulse">
-              ⚠️ Backend Offline: Exclusão desativada
-            </p>
-          )}
         </div>
         <div className="flex gap-2">
           <div className="relative">

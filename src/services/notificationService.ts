@@ -1,10 +1,11 @@
 import { auth } from '@/lib/firebase';
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) || '';
+// Definindo a URL do seu Render como fallback padrão
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) || 'https://roadracer-backend.onrender.com';
 
 export async function sendPushNotification(title: string, body: string, url: string = '/') {
   try {
-    if (!BACKEND_URL) return { success: false, reason: 'VITE_BACKEND_URL não configurado' };
+    if (!BACKEND_URL) return { success: false, reason: 'Backend não configurado' };
 
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) {
